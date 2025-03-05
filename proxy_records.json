@@ -1,10 +1,12 @@
 [
   {
-    "name": "proxy-asianortheast3b",
+    "name": "proxy-asianortheast3c",
     "provider": "gcp",
-    "region": "首爾",
-    "zone": "asia-northeast3-b",
-    "instance_id": "proxy-asianortheast3b",
-    "ip": "34.22.83.236"
+    "region": "asia-northeast3",
+    "zone": "asia-northeast3-c",
+    "instance_id": "proxy-asianortheast3c",
+    "ip": "34.22.83.236",
+    "type": "instance",
+    "location": "首爾"
   }
 ]
