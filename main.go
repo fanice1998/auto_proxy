@@ -100,7 +100,7 @@ func (c *Commander) Create(ctx context.Context) error {
 			Zone:       selectedZone,
 			InstanceID: instanceID,
 			IP:         ip,
-			Type: "instance",
+			Type:       "instance",
 			Location:   selectedLocation,
 		})
 	if err := c.recordManager.Save(records); err != nil {
@@ -134,7 +134,7 @@ func (c *Commander) Delete(ctx context.Context, name string) error {
 	info, err := c.provider.GetInstanceInfo(ctx, instanceRecord.Zone, instanceRecord.InstanceID)
 	if err != nil {
 		c.logger.Printf("Failed to get instance info for %s: %v", instanceRecord.InstanceID, err)
-	}else {
+	} else {
 		fmt.Printf("Found boot disk: %s for instance %s\n", info.DiskID, instanceRecord.InstanceID)
 	}
 
@@ -155,13 +155,13 @@ func (c *Commander) Delete(ctx context.Context, name string) error {
 	// 刪除磁碟
 	if info.DiskID != "" {
 		diskRecord := ProxyRecord{
-			Name: name,
-			Provider: instanceRecord.Provider,
-			Region: instanceRecord.Region,
-			Zone: instanceRecord.Zone,
+			Name:       name,
+			Provider:   instanceRecord.Provider,
+			Region:     instanceRecord.Region,
+			Zone:       instanceRecord.Zone,
 			InstanceID: info.DiskID,
-			Type: "disk",
-			Location: instanceRecord.Location,
+			Type:       "disk",
+			Location:   instanceRecord.Location,
 		}
 
 		if err := c.provider.DeleteDisk(ctx, instanceRecord.Zone, info.DiskID); err != nil {
@@ -195,11 +195,39 @@ func (c *Commander) List() error {
 	return nil
 }
 
+func checkEnv() error {
+	// check .env is exists, if not exists create .env
+	if _, err := os.Stat(".env"); os.IsNotExist(err) {
+		fmt.Println("No .env file found, creating an example .env file")
+		file, err := os.Create(".env")
+		if err != nil {
+			return fmt.Errorf("failed to create .env file: %v", err)
+		}
+
+		file.WriteString(`# Google Cloud credentials path
+GOOGLE_APPLICATION_CREDENTIALS=""
+
+# Google project id
+GOOGLE_PROJECT_ID=""
+
+# Ansible ssh config
+ANSIBLE_SSH_USER=""
+ANSIBLE_SSH_KEY_PATH=""
+		`)
+		defer file.Close()
+	}
+	if err := godotenv.Load(); err != nil {
+		log.New(os.Stdout, "Proxy: ", log.LstdFlags).Printf("Error loading .env file: %v", err)
+	}
+	return nil
+}
+
 func main() {
 	logger := log.New(os.Stdout, "Proxy: ", log.LstdFlags)
 
-	if err := godotenv.Load(); err != nil {
-		logger.Printf("Error loading .env file: %v", err)
+	if err := checkEnv(); err != nil {
+		logger.Printf("Error checking environment: %v", err)
+		os.Exit(1)
 	}
 
 	credsPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -208,13 +236,30 @@ func main() {
 		os.Exit(1)
 	}
 
-	provider, err := NewGCPProvider("flash-gasket-451912-a8", credsPath)
+	projectId := os.Getenv("GOOGLE_PROJECT_ID")
+	if projectId == "" {
+		logger.Println("GOOGLE_PROJECT_ID not set in .env")
+		os.Exit(1)
+	}
+
+	provider, err := NewGCPProvider(projectId, credsPath)
 	if err != nil {
 		logger.Printf("Error initializing GCP: %v", err)
 		os.Exit(1)
 	}
 
-	deployer := NewAnsibleProxyDeployer("fanice", "/home/fanice/.ssh/faniceNP")
+	sshUser := os.Getenv("ANSIBLE_SSH_USER")
+	if sshUser == "" {
+		logger.Println("ANSIBLE_SSH_USER not set in .env")
+		os.Exit(1)
+	}
+	sshKeyPath := os.Getenv("ANSIBLE_SSH_KEY_PATH")
+	if sshKeyPath == "" {
+		logger.Println("ANSIBLE_SSH_KEY_PATH not set in .env")
+		os.Exit(1)
+	}
+
+	deployer := NewAnsibleProxyDeployer(sshUser, sshKeyPath)
 	recordManager := NewRecordManager("proxy_records.json")
 	commander := NewCommander(provider, deployer, recordManager, logger)
 

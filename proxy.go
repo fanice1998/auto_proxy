@@ -22,6 +22,15 @@ func NewAnsibleProxyDeployer(user, keyPath string) *AnsibleProxyDeployer {
 }
 
 func (d *AnsibleProxyDeployer) Deploy(ip string) error {
+	sshUser := os.Getenv("ANSIBLE_SSH_USER")
+	if sshUser == "" {
+		return fmt.Errorf("ANSIBLE_SSH_USER not set in .env")
+	}
+	sshKeyPath := os.Getenv("ANSIBLE_SSH_KEY_PATH")
+	if sshKeyPath == "" {
+		return fmt.Errorf("ANSIBLE_SSH_KEY_PATH not set in .env")
+	}
+
 	invetory := fmt.Sprintf("[proxy_server]\n%s ansible_user=%s ansible_ssh_private_key_file=%s", ip, d.user, d.keyPath)
 	if err := os.WriteFile("inventory.ini", []byte(invetory), 0645); err != nil {
 		return err
